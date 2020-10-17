@@ -1,10 +1,14 @@
 import requests
 import pandas as pd
+import wptools as wp
 from qwikidata.sparql  import return_sparql_query_results
 
-df = pd.read_csv ("test.csv")
+df = pd.read_csv ("steam-store.csv")
 
 session = requests.Session()
+
+new_entries = []
+parsed_organizations = []
 
 def query(title):
 
@@ -32,18 +36,28 @@ def query(title):
     """
 
     res = return_sparql_query_results(query_string)
-    print(res)
 
     for row in res["results"]["bindings"]:
-        # print("Publisher:", row['article']['value'][30:])
-        print("Publisher:", row['publisher'])
+        entity = str(row['publisher']['value']).rsplit('/', 1)[1]
+        print("Publisher:", entity)
+        #if entity not in parsed_organizations:
+        page = wp.page(wikibase=entity, silent=True)
+        info = page.get_wikidata(show=False)
+        wikipedia_page = wp.page(info.data['title'])
+        text_extract = wikipedia_page.get_query(show=False).data['extext']
+        new_entries.append([info.data['title'],text_extract.strip('\t\n\r')])
+        #parsed_organizations.append(entity)
 
-    
+        
 
 def myFunc(names):
     for name in names:
         print(name)
         query(name)
+    df = pd.DataFrame(new_entries, columns=['organization', 'description'])
+    df.replace(to_replace=[r"\\t|\\n|\\r", "\t|\n|\r"], value=["",""], regex=True, inplace=True)
+    print(df)
+    df.to_csv('publisher-info.csv')
 
 
 myFunc(df["name"].values)
