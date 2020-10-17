@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 import wptools as wp
+from time import sleep
 from qwikidata.sparql  import return_sparql_query_results
 
 df = pd.read_csv ("steam-store.csv")
@@ -8,7 +9,7 @@ df = pd.read_csv ("steam-store.csv")
 session = requests.Session()
 
 new_entries = []
-parsed_organizations = []
+parsed_organizations = set()
 
 def query(title):
 
@@ -39,14 +40,17 @@ def query(title):
 
     for row in res["results"]["bindings"]:
         entity = str(row['publisher']['value']).rsplit('/', 1)[1]
-        print("Publisher:", entity)
-        #if entity not in parsed_organizations:
-        page = wp.page(wikibase=entity, silent=True)
-        info = page.get_wikidata(show=False)
-        wikipedia_page = wp.page(info.data['title'])
-        text_extract = wikipedia_page.get_query(show=False).data['extext']
-        new_entries.append([info.data['title'],text_extract.strip('\t\n\r')])
-        #parsed_organizations.append(entity)
+        if entity not in parsed_organizations:
+            print("Publisher:", entity)
+            page = wp.page(wikibase=entity, silent=True)
+            info = page.get_wikidata(show=False)
+            wikipedia_page = wp.page(info.data['title'])
+            text_extract = wikipedia_page.get_query(show=False).data['extext']
+            new_entries.append([info.data['title'],text_extract.strip('\t\n\r')])
+            parsed_organizations.add(entity)
+        else:
+            print("Already in list")
+            sleep(0.5)
 
         
 
