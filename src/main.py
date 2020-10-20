@@ -28,24 +28,25 @@ def parse_code(title, code, type):
 
     prev_org = next((x for x in parsed_organizations if x.code == code), None)
 
+
     if  prev_org is None: 
         page = wp.page(wikibase=code, silent=True)
         info = page.get_wikidata(show=False)
         org_title = info.data['title']
-        wikipedia_page = wp.page(org_title)        
-        data = wikipedia_page.get_query(show=False)
-        if hasattr(data,'extext'):
+        wikipedia_page = wp.page(org_title, skip=['claims', 'imageinfo'])       
+        data = wikipedia_page.get_query(show=False).data
+        if ('extext' in data):
             text_extract = data['extext']
             new_entries.append([org_title,text_extract.strip('\t\n\r')])
             parsed_organizations.add(Organization(code, org_title))
             df.loc[df['name'] == title, type] = org_title
     else:
         df.loc[df['name'] == title, type] = prev_org.name
-        sleep(0.5)
+        # sleep(0.5)
 
 
 def query(title):
-    sleep(1)
+    # sleep(1)
     print("querying: ", title)
     # query_string = f"""
     #     PREFIX schema: <http://schema.org/>
@@ -91,7 +92,7 @@ def myFunc(names):
     # create and save organizations csv
     organization_df = pd.DataFrame(new_entries, columns=['organization', 'description'])
     organization_df.replace(to_replace=[r"\\t", r"\\n|\\r", "\t|\n|\r"], value=["\t","\n","\n"], regex=True, inplace=True)
-    organization_df.to_csv('publisher-info.csv')
+    organization_df.to_csv('publisher-info.csv', index=False)
     # update steam-store csv
     df.to_csv("updated-store.csv")
     # write error
