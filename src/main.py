@@ -42,11 +42,11 @@ def parse_code(title, code, type):
             df.loc[df['name'] == title, type] = org_title
     else:
         df.loc[df['name'] == title, type] = prev_org.name
-        # sleep(0.5)
+
 
 
 def query(title):
-    # sleep(1)
+    sleep(1)
     print("querying: ", title)
     # query_string = f"""
     #     PREFIX schema: <http://schema.org/>
