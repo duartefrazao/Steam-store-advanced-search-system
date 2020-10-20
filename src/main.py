@@ -9,6 +9,7 @@ df = pd.read_csv ("steam-store.csv")
 session = requests.Session()
 
 new_entries = []
+errors = []
 parsed_organizations = set()
 
 class Organization(object):
@@ -27,22 +28,24 @@ def parse_code(title, code, type):
 
     prev_org = next((x for x in parsed_organizations if x.code == code), None)
 
-    if  prev_org is None:
+    if  prev_org is None: 
         page = wp.page(wikibase=code, silent=True)
         info = page.get_wikidata(show=False)
         org_title = info.data['title']
-        wikipedia_page = wp.page(org_title)
-        text_extract = wikipedia_page.get_query(show=False).data['extext']
-        new_entries.append([org_title,text_extract.strip('\t\n\r')])
-        parsed_organizations.add(Organization(code, org_title))
-        df.loc[df['name'] == title, type] = org_title
+        wikipedia_page = wp.page(org_title)        
+        data = wikipedia_page.get_query(show=False)
+        if hasattr(data,'extext'):
+            text_extract = data['extext']
+            new_entries.append([org_title,text_extract.strip('\t\n\r')])
+            parsed_organizations.add(Organization(code, org_title))
+            df.loc[df['name'] == title, type] = org_title
     else:
         df.loc[df['name'] == title, type] = prev_org.name
         sleep(0.5)
 
 
 def query(title):
-
+    sleep(1)
     print("querying: ", title)
     # query_string = f"""
     #     PREFIX schema: <http://schema.org/>
@@ -57,25 +60,29 @@ def query(title):
     #         }}
     #     }}    
     # """
-    query_string = f"""
-        PREFIX schema: <http://schema.org/>
-        SELECT ?title ?publisher ?developer WHERE {{
-            ?item wdt:P31 wd:Q7889 .
-            ?item rdfs:label "{title}"@en
-            OPTIONAL {{ ?item wdt:P123 ?publisher. }}
-            OPTIONAL {{ ?item wdt:P178 ?developer. }}
-        }}    
-    """
+    try:
+        query_string = f"""
+            PREFIX schema: <http://schema.org/>
+            SELECT ?title ?publisher ?developer WHERE {{
+                ?item wdt:P31 wd:Q7889 .
+                ?item rdfs:label "{title}"@en
+                OPTIONAL {{ ?item wdt:P123 ?publisher. }}
+                OPTIONAL {{ ?item wdt:P178 ?developer. }}
+            }}    
+        """
 
-    res = return_sparql_query_results(query_string)
+        res = return_sparql_query_results(query_string)
 
-    for row in res["results"]["bindings"]:
-        if 'publisher' in row:
-            publisher_code = str(row['publisher']['value']).rsplit('/', 1)[1]
-            parse_code(title, publisher_code, 'publisher')
-        if 'developer' in row:
-            developer_code = str(row['developer']['value']).rsplit('/', 1)[1]
-            parse_code(title, developer_code, 'developer')
+        for row in res["results"]["bindings"]:
+                if 'publisher' in row:
+                    publisher_code = str(row['publisher']['value']).rsplit('/', 1)[1]
+                    parse_code(title, publisher_code, 'publisher')
+                if 'developer' in row:
+                    developer_code = str(row['developer']['value']).rsplit('/', 1)[1]
+                    parse_code(title, developer_code, 'developer')
+    except:
+        print("Could not query ", title)
+        errors.append(title)
 
 def myFunc(names):
     for name in names:
@@ -87,6 +94,9 @@ def myFunc(names):
     organization_df.to_csv('publisher-info.csv')
     # update steam-store csv
     df.to_csv("updated-store.csv")
+    # write error
+    errors_df = pd.DataFrame(errors, columns=['title'])
+    errors_df.to_csv('errors.csv')
 
 
 myFunc(df["name"].values)
