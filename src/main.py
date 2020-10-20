@@ -24,25 +24,18 @@ class Organization(object):
     def __hash__(self):
         return hash(self.code)
 
-def parse_code(title, code, type):
+def parse_code(title, org, type):
 
-    prev_org = next((x for x in parsed_organizations if x.code == code), None)
-
-
-    if  prev_org is None: 
-        page = wp.page(wikibase=code, silent=True)
-        info = page.get_wikidata(show=False)
-        org_title = info.data['title']
-        wikipedia_page = wp.page(org_title, skip=['claims', 'imageinfo'])       
+    if(org not in parsed_organizations):
+        wikipedia_page = wp.page(org.name, skip=['claims', 'imageinfo'])       
         data = wikipedia_page.get_query(show=False).data
         if ('extext' in data):
             text_extract = data['extext']
-            new_entries.append([org_title,text_extract.strip('\t\n\r')])
-            parsed_organizations.add(Organization(code, org_title))
-            df.loc[df['name'] == title, type] = org_title
-    else:
-        df.loc[df['name'] == title, type] = prev_org.name
-
+            new_entries.append([org.name,text_extract.strip('\t\n\r')])
+            parsed_organizations.add(org)
+    
+    df.loc[df['name'] == title, type] = org.name
+    
 
 
 def query(title):
@@ -62,25 +55,51 @@ def query(title):
     #     }}    
     # """
     try:
-        query_string = f"""
-            PREFIX schema: <http://schema.org/>
-            SELECT ?title ?publisher ?developer WHERE {{
-                ?item wdt:P31 wd:Q7889 .
-                ?item rdfs:label "{title}"@en
-                OPTIONAL {{ ?item wdt:P123 ?publisher. }}
-                OPTIONAL {{ ?item wdt:P178 ?developer. }}
-            }}    
+        publisher_query = f"""
+            SELECT ?gameLabel ?publisher ?publisherLabel WHERE {{
+                hint:Query hint:optimizer "None" .
+                
+                ?game wdt:P31 wd:Q7889 .
+                ?game rdfs:label "{title}"@en .
+                ?game wdt:P123 ?publisher .
+                
+                ?publisherProp wikibase:directClaim wdt:P123 . 
+
+                SERVICE wikibase:label {{bd:serviceParam wikibase:language "en" .}}
+                }}
         """
+        developer_query = f"""
+            SELECT ?gameLabel ?developer ?developerLabel WHERE {{
+                hint:Query hint:optimizer "None" .
+                
+                ?game wdt:P31 wd:Q7889 .
+                ?game rdfs:label "{title}"@en .
+                ?game wdt:P178 ?developer .
+                
+                ?developerProp wikibase:directClaim wdt:P178 . 
 
-        res = return_sparql_query_results(query_string)
+                SERVICE wikibase:label {{bd:serviceParam wikibase:language "en" .}}
+                }}
+        """
+        # query_string = f"""
+        #     PREFIX schema: <http://schema.org/>
+        #     SELECT ?title ?publisher ?developer WHERE {{
+        #         ?item wdt:P31 wd:Q7889 .
+        #         ?item rdfs:label "{title}"@en
+        #         OPTIONAL {{ ?item wdt:P123 ?publisher. }}
+        #         OPTIONAL {{ ?item wdt:P178 ?developer. }}
+        #     }}    
+        # """
 
-        for row in res["results"]["bindings"]:
-                if 'publisher' in row:
-                    publisher_code = str(row['publisher']['value']).rsplit('/', 1)[1]
-                    parse_code(title, publisher_code, 'publisher')
-                if 'developer' in row:
-                    developer_code = str(row['developer']['value']).rsplit('/', 1)[1]
-                    parse_code(title, developer_code, 'developer')
+        publishers = return_sparql_query_results(publisher_query)["results"]["bindings"]
+        developers = return_sparql_query_results(developer_query)["results"]["bindings"]
+
+        for row in publishers:
+                if 'publisherLabel' in row:
+                    parse_code(title, Organization(row['publisher']['value'],row['publisherLabel']['value']), 'publisher')
+        for row in developers:
+                if 'developerLabel' in row:
+                    parse_code(title, Organization(row['developer']['value'],row['developerLabel']['value']), 'developer')
     except:
         print("Could not query ", title)
         errors.append(title)
