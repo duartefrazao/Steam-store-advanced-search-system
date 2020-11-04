@@ -42,17 +42,6 @@ const parse_codes = async (orgs) => {
         console.error("Could not fetch wikipedia info");
         console.error(e);
     }
-
-
-    // wikipedia_page = wp.page(org.name, skip = ["claims", "imageinfo"]);
-    // data = wikipedia_page.get_query(show = False).data;
-    // if ("extext" in data) {
-    //     text_extract = data["extext"];
-    //     new_entries.append([org.name, text_extract.strip("\t\n\r")]);
-    //     parsed_organizations.add(org);
-    // }
-
-
 };
 
 const query = async (titles, initialDF) => {
@@ -60,13 +49,15 @@ const query = async (titles, initialDF) => {
     let updatedDF = initialDF;
     try {
         const orgs = [];
-        for (const title of titles) {
-            const publisher_query = `
+        const gamesRestriction = titles.map((title) => `{?game rdfs:label "${title}"@en .}`).join(" UNION ");
+        const publisher_query = `
             SELECT ?gameLabel ?publisher ?publisherLabel WHERE {
                 hint:Query hint:optimizer "None" .
                 
                 ?game wdt:P31 wd:Q7889 .
-                ?game rdfs:label "${title}"@en .
+                
+                ${gamesRestriction}
+                
                 ?game wdt:P123 ?publisher .
                 
                 ?publisherProp wikibase:directClaim wdt:P123 . 
@@ -74,12 +65,14 @@ const query = async (titles, initialDF) => {
                 SERVICE wikibase:label {bd:serviceParam wikibase:language "en" .}
                 }
             `;
-            const developer_query = `
+        const developer_query = `
                 SELECT ?gameLabel ?developer ?developerLabel WHERE {
                     hint:Query hint:optimizer "None" .
                     
                     ?game wdt:P31 wd:Q7889 .
-                    ?game rdfs:label "${title}"@en .
+
+                    ${gamesRestriction}
+
                     ?game wdt:P178 ?developer .
                     
                     ?developerProp wikibase:directClaim wdt:P178 . 
@@ -88,31 +81,78 @@ const query = async (titles, initialDF) => {
                 }
             `;
 
-            try {
-                const publishers = (await axios.get(wdk.sparqlQuery(publisher_query))).data.results.bindings;
-                publishers.forEach((row) => {
-                    if (row.publisherLabel) {
-                        orgs.push({ code: row.publisher.value.slice(31), name: row.publisherLabel.value });
-                        updatedDF = updateRow(updatedDF, (row) => row.get("name") === title, ["publisher", row.publisherLabel.value]);
-                    }
-                });
+        const publisherCoveredTitles = new Set();
+        const developerCoveredTitles = new Set();
+        try {
+            const publishers = (await axios.get(wdk.sparqlQuery(publisher_query))).data.results.bindings;
+            publishers.forEach((row) => {
+                if (row.publisherLabel) {
+                    publisherCoveredTitles.add(row.gameLabel.value);
+                    orgs.push({ code: row.publisher.value.slice(31), name: row.publisherLabel.value });
+                    updatedDF = updateRow(
+                        updatedDF,
+                        (r) => r.get("name") === row.gameLabel.value,
+                        ["publisher", row.publisherLabel.value]);
+                }
+            });
+        } catch (e) {
+            console.error("Could not query all publishers for titles", titles);
+            console.error(e);
+        }
+        try {
+            const developers = (await axios.get(wdk.sparqlQuery(developer_query))).data.results.bindings;
+            developers.forEach((row) => {
+                if (row.developerLabel) {
+                    developerCoveredTitles.add(row.gameLabel.value);
+                    orgs.push({ code: row.developer.value.slice(31), name: row.developerLabel.value });
+                    updatedDF = updateRow(
+                        updatedDF,
+                        (r) => r.get("name") === row.gameLabel.value,
+                        ["developer", row.developerLabel.value]);
+                }
+            });
+        } catch (e) {
+            console.error("Could not query all developers for titles", titles);
+            console.error(e);
+        }
 
-            } catch (e) {
-                console.error("Could not query publishers for title", title);
-                console.error(e);
+        const uncoveredPublisherTitles = titles.filter((t) => !publisherCoveredTitles.has(t));
+        const uncoveredDeveloperTitles = titles.filter((t) => !developerCoveredTitles.has(t));
+        const publishersFromCSVForUncoveredTitlesSet =
+        uncoveredPublisherTitles.reduce((publishers, title) => {
+            publishers.add(updatedDF.find({ "name": title }).get("publisher"));
+            return publishers;
+        }, new Set());
+        const developersFromCSVForUncoveredTitlesSet =
+        uncoveredDeveloperTitles.reduce((developers, title) => {
+            developers.add(updatedDF.find({ "name": title }).get("developer"));
+            return developers;
+        }, new Set());
+
+        const missingOrgsSet = publishersFromCSVForUncoveredTitlesSet;
+        developersFromCSVForUncoveredTitlesSet.forEach((d) => missingOrgsSet.add(d));
+        if (missingOrgsSet.size > 0) {
+            const missingOrgsRestriction = missingOrgsSet.map((org) => `{?org rdfs:label "${org}"@en .}`).join(" UNION ");
+
+            console.log("RESTRICTION", missingOrgsRestriction);
+            const missing_orgs_query = `
+            SELECT ?org ?orgLabel WHERE {
+                hint:Query hint:optimizer "None" .
+            
+                {?org wdt:P31 wd:Q210167 .}
+                UNION
+                {?org wdt:P31 wd:Q2085381 .}
+                
+                ${missingOrgsRestriction}
+            
+                SERVICE wikibase:label {bd:serviceParam wikibase:language "en" .}
             }
-            try {
-                const developers = (await axios.get(wdk.sparqlQuery(developer_query))).data.results.bindings;
-                developers.forEach((row) => {
-                    if (row.developerLabel) {
-                        orgs.push({ code: row.developer.value.slice(31), name: row.developerLabel.value });
-                        updatedDF = updateRow(updatedDF, (row) => row.get("name") === title, ["developer", row.developerLabel.value]);
-                    }
-                });
-            } catch (e) {
-                console.error("Could not query developers for title", title);
-                console.error(e);
-            }
+        `;
+
+            const missingOrgs = (await axios.get(wdk.sparqlQuery(missing_orgs_query))).data.results.bindings;
+            console.log("Querying missing orgs: ", missingOrgs.map((row) => row.orgLabel.value));
+            orgs.push(...(missingOrgs).map((row) => row.orgLabel.value));
+
         }
 
         await parse_codes(orgs);
