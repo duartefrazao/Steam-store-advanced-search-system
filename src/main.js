@@ -118,25 +118,39 @@ const query = async (titles, initialDF) => {
 
         const uncoveredPublisherTitles = titles.filter((t) => !publisherCoveredTitles.has(t));
         const uncoveredDeveloperTitles = titles.filter((t) => !developerCoveredTitles.has(t));
-        const publishersFromCSVForUncoveredTitlesSet =
-        uncoveredPublisherTitles.reduce((publishers, title) => {
-            publishers.add(updatedDF.find({ "name": title }).get("publisher"));
-            return publishers;
-        }, new Set());
-        const developersFromCSVForUncoveredTitlesSet =
-        uncoveredDeveloperTitles.reduce((developers, title) => {
-            developers.add(updatedDF.find({ "name": title }).get("developer"));
-            return developers;
-        }, new Set());
+        const missingOrgs = new Map()
+        uncoveredPublisherTitles.forEach(title => {
+            const pub = updatedDF.find({ "name": title }).get("publisher");
+            if (missingOrgs[pub])
+                missingOrgs.get(pub).push({ title, type: 'publisher' })
+            else
+                missingOrgs.set(pub, [{ title, type: 'publisher' }])
+        })
 
-        const missingOrgsSet = publishersFromCSVForUncoveredTitlesSet;
-        developersFromCSVForUncoveredTitlesSet.forEach((d) => missingOrgsSet.add(d));
-        if (missingOrgsSet.size > 0) {
-            const missingOrgsRestriction = missingOrgsSet.map((org) => `{?org rdfs:label "${org}"@en .}`).join(" UNION ");
+        uncoveredDeveloperTitles.forEach(title => {
+            const pub = updatedDF.find({ "name": title }).get("developer");
+            if (missingOrgs[pub])
+                missingOrgs.get(pub).push({ title, type: 'developer' })
+            else
+                missingOrgs.set(pub, [{ title, type: 'developer' }])
+        })
 
-            console.log("RESTRICTION", missingOrgsRestriction);
+        if (missingOrgs.size > 0) {
+            const missingOrgsRestriction = Array.from(missingOrgs).map(([key]) => `
+            {
+                ?org rdfs:label ?orgLabel.
+
+                filter contains(?orgLabel,"${key}") 
+
+                filter langMatches(lang(?orgLabel),'en')
+
+                BIND ("${key}" as ?ogName)
+
+            }`).join(" UNION ");
+
+            // console.log("RESTRICTION", missingOrgsRestriction);
             const missing_orgs_query = `
-            SELECT ?org ?orgLabel WHERE {
+            SELECT ?org ?orgLabel ?ogName WHERE {
                 hint:Query hint:optimizer "None" .
             
                 {?org wdt:P31 wd:Q210167 .}
@@ -147,11 +161,23 @@ const query = async (titles, initialDF) => {
             
                 SERVICE wikibase:label {bd:serviceParam wikibase:language "en" .}
             }
-        `;
+            `;
 
-            const missingOrgs = (await axios.get(wdk.sparqlQuery(missing_orgs_query))).data.results.bindings;
-            console.log("Querying missing orgs: ", missingOrgs.map((row) => row.orgLabel.value));
-            orgs.push(...(missingOrgs).map((row) => row.orgLabel.value));
+            const missingOrgsRes = (await axios.get(wdk.sparqlQuery(missing_orgs_query))).data.results.bindings;
+            missingOrgsRes.forEach((row) => {
+                if (row.orgLabel) {
+                    orgs.push({ code: row.org.value.slice(31), name: row.orgLabel.value });
+
+                    missingOrgs.get(row.ogName.value).forEach(org =>{
+                    updatedDF = updateRow(
+                        updatedDF,
+                        (r) => r.get("name") === org.title,
+                        [org.type, row.orgLabel.value]);
+                    })
+                }
+            });
+            // console.log("Querying missing orgs: ", missingOrgsRes.map((row) => row.orgLabel.value));
+
 
         }
 
@@ -184,30 +210,30 @@ const enrich = async (names, initialDF) => {
     return updatedDF;
 }
 
-// need to chunkify names and pass to query()
-// await Promise.all(names.map((name) => {
-//     console.log(name);
-//     return query(name);
-// }));
+    // need to chunkify names and pass to query()
+    // await Promise.all(names.map((name) => {
+    //     console.log(name);
+    //     return query(name);
+    // }));
 
-// // Create and save organizations csv
-// organization_df = pd.DataFrame(new_entries, columns = ["organization", "description"]);
-// organization_df.replace(to_replace=[r"\\t", r"\\n|\\r", "\t|\n|\r"], value=["\t","\n","\n"], regex=True, inplace=True)
-// organization_df.to_csv('publisher-info.csv', index=False)
-// // Update steam-store csv
-// steamStoreDF.to_csv("updated-store.csv");
-// // Write error
-// errors_df = pd.DataFrame(errors, columns = ["title"]);
-// errors_df.to_csv("errors.csv");
-;
+    // // Create and save organizations csv
+    // organization_df = pd.DataFrame(new_entries, columns = ["organization", "description"]);
+    // organization_df.replace(to_replace=[r"\\t", r"\\n|\\r", "\t|\n|\r"], value=["\t","\n","\n"], regex=True, inplace=True)
+    // organization_df.to_csv('publisher-info.csv', index=False)
+    // // Update steam-store csv
+    // steamStoreDF.to_csv("updated-store.csv");
+    // // Write error
+    // errors_df = pd.DataFrame(errors, columns = ["title"]);
+    // errors_df.to_csv("errors.csv");
+    ;
 
 // enrich(steamStoreDF.iloc[0:6750,1])
 
 const start = async () => {
-    const steamStoreDF = await DataFrame.fromCSV(path.resolve(__dirname, "steam-store.csv")).then((df) => df);
+    const steamStoreDF = await DataFrame.fromCSV(path.resolve(__dirname, "aggregation", "misses.csv")).then((df) => df);
     const names = steamStoreDF.select("name").toArray().map((el) => el[0]);
 
-    const enrichedDF = await enrich(names.slice(0, 100), steamStoreDF);
+    const enrichedDF = await enrich(names.slice(0, 3), steamStoreDF);
 
     enrichedDF.toCSV(true, path.resolve(__dirname, "node-updated-store.csv"));
 
