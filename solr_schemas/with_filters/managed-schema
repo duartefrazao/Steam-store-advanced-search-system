@@ -448,7 +448,7 @@
     </analyzer>
   </fieldType>
   <fieldType name="custom_text" class="solr.TextField" positionIncrementGap="100" multiValued="true">
-    <analyzer type="index">
+    <analyzer>
       <tokenizer class="solr.StandardTokenizerFactory"/>
       <filter class="solr.StopFilterFactory" words="stopwords.txt" ignoreCase="true"/> <!-- Eliminate stop words -->
       <filter class="solr.LowerCaseFilterFactory"/> <!-- Lower case -->
@@ -456,13 +456,6 @@
       <filter class="solr.SynonymGraphFilterFactory" synonyms="synonyms.txt"/> <!-- Add synonyms -->
       <filter class="solr.FlattenGraphFilterFactory"/> 
       <filter class="solr.PorterStemFilterFactory"/>  <!-- Returns the words root -->
-    </analyzer>
-    <analyzer type="query">
-    	<tokenizer class="solr.StandardTokenizerFactory"/>
-     	<filter class="solr.StopFilterFactory" words="stopwords.txt" ignoreCase="true"/> <!-- Eliminate stop words -->
-      	<filter class="solr.LowerCaseFilterFactory"/> <!-- Lower case -->
-      	<filter class="solr.EnglishPossessiveFilterFactory"/> <!-- Eliminate 's's -->
-      	<filter class="solr.SynonymGraphFilterFactory" synonyms="synonyms.txt"/> <!-- Add synonyms -->
     </analyzer>
   </fieldType>
   <field name="_root_" type="string" docValues="false" indexed="true" stored="false"/>
