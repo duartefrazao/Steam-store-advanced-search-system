@@ -458,25 +458,39 @@
       <filter class="solr.PorterStemFilterFactory"/>  <!-- Returns the words root -->
     </analyzer>
   </fieldType>
+  <fieldType name="name_text" class="solr.TextField" positionIncrementGap="100" multiValued="true">
+    <analyzer>
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/> <!-- Lower case -->
+      <filter class="solr.SynonymGraphFilterFactory" synonyms="synonyms.txt"/> <!-- Add synonyms -->
+      <filter class="solr.FlattenGraphFilterFactory"/> 
+    </analyzer>
+  </fieldType>
+  <fieldType name="tag_text" class="solr.TextField" positionIncrementGap="100" multiValued="true">
+    <analyzer>
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/> <!-- Lower case -->
+    </analyzer>
+  </fieldType>
   <field name="_root_" type="string" docValues="false" indexed="true" stored="false"/>
   <field name="_text_" type="text_general" multiValued="true" indexed="true" stored="false"/>
   <field name="_version_" type="plong" indexed="false" stored="false"/>
   <field name="appid" type="string" uninvertible="true" indexed="true" stored="true"/>
   <field name="average_playtime" type="plong"/>
-  <field name="categories" type="strings" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
+  <field name="categories" type="tag_text" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
   <field name="detailed_description" type="custom_text" uninvertible="true" indexed="true" stored="true"/>
-  <field name="developer" type="string" uninvertible="true" indexed="true" stored="true"/>
-  <field name="genres" type="strings" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
+  <field name="developer" type="name_text" uninvertible="true" indexed="true" stored="true"/>
+  <field name="genres" type="tag_text" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
   <field name="id" type="string" multiValued="false" indexed="true" required="true" stored="true"/>
   <field name="is_english" type="boolean" uninvertible="false" indexed="false" stored="true"/>
   <field name="median_playtime" type="pfloat" indexed="false" stored="true" uninvertible="false" docValues="true"/>
-  <field name="name" type="string" uninvertible="true" indexed="true"  stored="true"/>
+  <field name="name" type="name_text" uninvertible="true" indexed="true"  stored="true"/>
   <field name="negative_ratings" type="pint" indexed="true" stored="true" uninvertible="false" docValues="true"/>
   <field name="owners" type="pint" indexed="false" stored="true" uninvertible="false" docValues="true"/>
-  <field name="platforms" type="strings" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
+  <field name="platforms" type="tag_text" uninvertible="true" multiValued="true" indexed="true" stored="true"/>
   <field name="positive_ratings" type="pint" indexed="true" stored="true" uninvertible="false" docValues="true"/>
   <field name="price" type="pfloat" indexed="false" stored="true" uninvertible="false" docValues="true" required="false"/>
-  <field name="publisher" type="string" uninvertible="true" indexed="true" required="false" stored="true"/>
+  <field name="publisher" type="name_text" uninvertible="true" indexed="true" required="false" stored="true"/>
   <field name="release_date" type="pdate" uninvertible="true" indexed="true" stored="true"/>
   <field name="required_age" type="pint" uninvertible="false" docValues="true" indexed="true" stored="true"/>
   <field name="website" type="string" uninvertible="false" indexed="false" stored="true"/>
