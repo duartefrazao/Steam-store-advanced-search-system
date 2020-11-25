@@ -77,7 +77,7 @@ const query = async (titles, initialDF) => {
                     
                     ?developerProp wikibase:directClaim wdt:P178 . 
 
-                    SERVICE wikibase:label {bd:serviceParam wikibase:language "en" .}
+                    SERVICE wikibase:label {bd:serviceParam wikibase:language "en" .} 
                 }
             `;
 
@@ -118,22 +118,22 @@ const query = async (titles, initialDF) => {
 
         const uncoveredPublisherTitles = titles.filter((t) => !publisherCoveredTitles.has(t));
         const uncoveredDeveloperTitles = titles.filter((t) => !developerCoveredTitles.has(t));
-        const missingOrgs = new Map()
-        uncoveredPublisherTitles.forEach(title => {
+        const missingOrgs = new Map();
+        uncoveredPublisherTitles.forEach((title) => {
             const pub = updatedDF.find({ "name": title }).get("publisher");
             if (missingOrgs[pub])
-                missingOrgs.get(pub).push({ title, type: 'publisher' })
+                missingOrgs.get(pub).push({ title, type: "publisher" });
             else
-                missingOrgs.set(pub, [{ title, type: 'publisher' }])
-        })
+                missingOrgs.set(pub, [{ title, type: "publisher" }]);
+        });
 
-        uncoveredDeveloperTitles.forEach(title => {
+        uncoveredDeveloperTitles.forEach((title) => {
             const pub = updatedDF.find({ "name": title }).get("developer");
             if (missingOrgs[pub])
-                missingOrgs.get(pub).push({ title, type: 'developer' })
+                missingOrgs.get(pub).push({ title, type: "developer" });
             else
-                missingOrgs.set(pub, [{ title, type: 'developer' }])
-        })
+                missingOrgs.set(pub, [{ title, type: "developer" }]);
+        });
 
         if (missingOrgs.size > 0) {
             const missingOrgsRestriction = Array.from(missingOrgs).map(([key]) => `
@@ -155,7 +155,7 @@ const query = async (titles, initialDF) => {
             
                 {?org wdt:P31 wd:Q210167 .}
                 UNION
-                {?org wdt:P31 wd:Q2085381 .}
+                {?org wdt:P31 wd:Q1137109 .}
                 
                 ${missingOrgsRestriction}
             
@@ -168,12 +168,12 @@ const query = async (titles, initialDF) => {
                 if (row.orgLabel) {
                     orgs.push({ code: row.org.value.slice(31), name: row.orgLabel.value });
 
-                    missingOrgs.get(row.ogName.value).forEach(org =>{
-                    updatedDF = updateRow(
-                        updatedDF,
-                        (r) => r.get("name") === org.title,
-                        [org.type, row.orgLabel.value]);
-                    })
+                    missingOrgs.get(row.ogName.value).forEach((org) => {
+                        updatedDF = updateRow(
+                            updatedDF,
+                            (r) => r.get("name") === org.title,
+                            [org.type, row.orgLabel.value]);
+                    });
                 }
             });
             // console.log("Querying missing orgs: ", missingOrgsRes.map((row) => row.orgLabel.value));
@@ -230,16 +230,16 @@ const enrich = async (names, initialDF) => {
 // enrich(steamStoreDF.iloc[0:6750,1])
 
 const start = async () => {
-    const steamStoreDF = await DataFrame.fromCSV(path.resolve(__dirname, "aggregation", "misses.csv")).then((df) => df);
+    const steamStoreDF = await DataFrame.fromCSV(path.resolve(__dirname, "steam_store.csv")).then((df) => df);
     const names = steamStoreDF.select("name").toArray().map((el) => el[0]);
 
-    const enrichedDF = await enrich(names.slice(0, 3), steamStoreDF);
+    const enrichedDF = await enrich(names.slice(20000, 25000), steamStoreDF);
 
-    enrichedDF.toCSV(true, path.resolve(__dirname, "node-updated-store.csv"));
+    enrichedDF.toCSV(true, path.resolve(__dirname, "node-updated-store-25000.csv"));
 
     const organizationsDF = new DataFrame(organizations, ["organization", "description"]);
     // organizationsDF.replace(to_replace=[r"\\t", r"\\n|\\r", "\t|\n|\r"], value=["\t","\n","\n"], regex=True, inplace=True)
-    organizationsDF.toCSV(true, path.resolve(__dirname, "node-publisher-info.csv"));
+    organizationsDF.toCSV(true, path.resolve(__dirname, "node-publisher-info-25000.csv"));
 
 };
 

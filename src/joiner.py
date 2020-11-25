@@ -3,33 +3,57 @@ import pandas as pd
 import wptools as wp
 import glob, os
 
-store_df = pd.read_csv("aggregation/store/final-store.csv")
+# store_df = pd.read_csv("aggregation/node/store/final-store.csv")
 
-# store_ang = pd.read_csv("aggregation/store/updated-store-ang.csv", nrows=6749).iloc[:, 1:]
+store_5 = pd.read_csv("aggregation/node/store/node-updated-store-5000.csv").iloc[:5000, 1:]
 
-# store_dua = pd.read_csv("aggregation/store/updated-store-ang.csv").iloc[6749:13499, 1:]
+store_10 = pd.read_csv("aggregation/node/store/node-updated-store-10000.csv").iloc[5000:15000, 1:]
 
-# store_ped = pd.read_csv("aggregation/store/updated-store-ped.csv").iloc[13499:, 1:]
+store_15 = pd.read_csv("aggregation/node/store/node-updated-store-15000.csv").iloc[15000:20000, 1:]
 
-fixed_misses = pd.read_csv("updated-store.csv").iloc[:15000]
+store_20 = pd.read_csv("aggregation/node/store/node-updated-store-20000.csv").iloc[20000:25000, 1:]
 
-# store_df = store_ang.append(store_dua, ignore_index=True)
+store_25 = pd.read_csv("aggregation/node/store/node-updated-store-25000.csv").iloc[25000:, 1:]
+
+# store_27 = pd.read_csv("aggregation/node/store/node-updated-store-27000.csv").iloc[27000:, 1:]
+
+
+store_df = store_5.append(store_10, ignore_index=True)
+store_df = store_df.append(store_15, ignore_index=True)
+store_df = store_df.append(store_20, ignore_index=True)
+store_df = store_df.append(store_25, ignore_index=True)
+# store_df = store_df.append(store_27, ignore_index=True)
 # store_df = store_df.append(store_ped, ignore_index=True)
 
-for row in fixed_misses.itertuples(index=False, name='Pandas'):
-    store_df.loc[store_df['name'] == row.name,'developer'] = row.developer
-    store_df.loc[store_df['name'] == row.name,'publisher'] = row.publisher
+# for row in fixed_misses.itertuples(index=False, name='Pandas'):
+#     store_df.loc[store_df['name'] == row.name,'developer'] = row.developer
+#     store_df.loc[store_df['name'] == row.name,'publisher'] = row.publisher
     
 
-store_df.to_csv("aggregation/store/final-store.csv",  index=False)
 
-organizations_df = pd.concat(map(pd.read_csv, glob.glob(os.path.join('aggregation/organizations/', "*.csv"))))
+organizations_df = pd.concat(map(pd.read_csv, glob.glob(os.path.join('aggregation/node/orgs/', "*.csv"))))
 
-organizations_df = organizations_df.drop_duplicates()
+organizations_df['organization'] = organizations_df['organization'].str.replace('_', ' ')
+organizations_df['organization'] = organizations_df['organization'].str.replace(r'.*\(.*\)', '')
+organizations_df['organization'] = organizations_df['organization'].str.replace('"', '')
+
+
+organizations_df = organizations_df[~(organizations_df['description'].str.contains("refer to"))]
+
+organizations_df = organizations_df.drop_duplicates(subset='organization')
+
+organizations_df = organizations_df.drop_duplicates(subset='description')
+
+store_df.to_csv("aggregation/node/store/final-store.csv",  index=False)
+
+store_df['developer'].to_csv('dev_names.csv')
+store_df['publisher'].to_csv('publisher_names.csv')
 
 print(organizations_df.nunique())
 
-organizations_df.to_csv("aggregation/organizations/final.csv", index=False)
+organizations_df['organization'].to_csv("org_names.csv")
+
+organizations_df.to_csv("aggregation/node/final.csv", index=False)
 
 misses = []
 
@@ -38,6 +62,6 @@ for row in store_df.itertuples(index=False, name='Pandas'):
         misses.append(row)
 
 missed_df = pd.DataFrame(misses)
-missed_df.to_csv("aggregation/misses.csv", index=False)
+# missed_df.to_csv("aggregation/misses.csv", index=False)
 
 print("Missing percentage: ", len(missed_df.values) / len(store_df.values))
