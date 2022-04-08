@@ -1,3 +1,16 @@
+An advanced search system that gathers information from several sources and provides two types of search.
+The first is a data retrieval system based on Solr, where several steps were made do accelerate and improve the quality of search results: indexing, filtering, synonym matching and stemming.
+The second is a web ontology created with Protégé that was populated with the same information and that can be queried with SPARQL.
+
+
+### Sources
+- Wikipedia/Wikidata API for game and publisher/developer information 
+- Steam datasets related to games (information, requirements, description, reviews)
+
+
+### Examples
+
+
 ## Instructions to use solr
 
 1. Copy steamgames folder to <your solr folder>/server/solr/configsets
